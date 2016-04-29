@@ -12,6 +12,7 @@ import numpy as np
 import cv2
 
 LineGroup = namedtuple("LineGroup", "norm pivotPoint lines")
+Checkbox = namedtuple("Checkbox", "a b c d")
 
 def build_segments_angle_map(points, angle_precision=4, min_size=5):
     """ Given a list of points build a line segment list
@@ -56,16 +57,16 @@ def build_segments_angle_map(points, angle_precision=4, min_size=5):
         add_segment(segment,angle_segment_map)
     return angle_segment_map
 
-minDegreeAngle = 5
-minRadAngle = (minDegreeAngle*np.pi)/180
-minRadAngle = round(minRadAngle, 4)
 
+def getRadAngle(degreeAngle):
+    radAngle = (degreeAngle*np.pi)/180
+    return round(radAngle, 4)
 
-def flatten_angles(angle_map, angle_epsilon=minRadAngle):
+def flatten_angles(angle_map, rad_angle_epsilon=8):
     """Concat similar angles together
     Args:
         angle_map (dict): list of something indexed by angles
-        angle_epsilon (float): how much of the difference to squash in rad
+        rad_angle_epsilon (float): how much of the difference to squash in rad
     """
     ret = {}
     last_angle = None
@@ -73,7 +74,7 @@ def flatten_angles(angle_map, angle_epsilon=minRadAngle):
     for angle in sorted(angle_map):
         if last_angle is None:
             last_angle = angle
-        if angle - last_angle > angle_epsilon:
+        if angle - last_angle > rad_angle_epsilon:
             last_angle = angle
         if last_angle in ret:
             current_lines = angle_map[angle].lines
@@ -114,16 +115,18 @@ def flatten_line_segment(segments,norm, gap_epsilon=10):
     dist_dict[distance] = base
     return dist_dict
 
-def is_boxy(points, angle_epsilon=minRadAngle, parallel_epsilon=0.3, min_size=5, gap_epsilon=10):
+def is_boxy(points, angle_epsilon=8, parallel_epsilon=0.5, min_size=5, gap_epsilon=10):
     """Wheter a point set resemble a box
     Args:
-        angle_epsilon: angle diff that cna be merged
+        angle_epsilon: angle diff that can be merged
         parallel_epsilon: how much can parallel lines differ
         min_size: min size that a segment must have
         gap_epsilon: min gap before merging segments
     """
+    angle_epsilon = getRadAngle(angle_epsilon)
+
     angle_map = build_segments_angle_map(points, min_size=min_size)
-    flatted = flatten_angles(angle_map, angle_epsilon=angle_epsilon)
+    flatted = flatten_angles(angle_map, rad_angle_epsilon=angle_epsilon)
     ninety_degree = np.pi/2
     angles_to_check = []
 
@@ -158,6 +161,11 @@ def is_boxy(points, angle_epsilon=minRadAngle, parallel_epsilon=0.3, min_size=5,
         start += 1
     return False
 
+def formatBox(box):
+    ret =[]
+    for item in box:
+        ret.append((item[0].item(),item[1].item()))
+    return ret
 
 def get_filled_contours(img_path,min_rect_size = 30):
     filled_coordinates = []
@@ -190,7 +198,7 @@ def get_filled_contours(img_path,min_rect_size = 30):
                     if width< min_rect_size:
                         continue
                     contour_list=list(map(lambda x: x[0], cnt))
-                    if not cbd.is_boxy(contour_list):
+                    if not is_boxy(contour_list):
                         continue
-                    filled_coordinates.append(box)                  
+                    filled_coordinates.append(formatBox(box))                 
     return filled_coordinates
